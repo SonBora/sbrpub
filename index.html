@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SBR Pub Menu</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent;
+        }
+        /* --- SEAT OVERLAY --- */
+        #seat-overlay {
+            position: fixed; inset: 0; background: #2c3e50; z-index: 9999;
+            display: flex; justify-content: center; align-items: center; padding: 20px;
+        }
+        .seat-card {
+            background: white; padding: 30px; border-radius: 20px; text-align: center;
+            width: 100%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        #seat-input {
+            width: 100%; padding: 15px; font-size: 24px; text-align: center;
+            border: 2px solid #3498db; border-radius: 10px; margin: 20px 0; box-sizing: border-box; font-weight: bold;
+        }
+        .btn-start {
+            background: #3498db; color: white; border: none; padding: 15px;
+            border-radius: 10px; font-weight: bold; width: 100%; font-size: 16px; cursor: pointer;
+        }
+
+        /* --- STICKY TABS --- */
+        .category-header {
+            display: flex; justify-content: space-around; background: white;
+            padding: 10px 5px; position: sticky; top: 0; z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .tab-btn {
+            padding: 8px; border: 1px solid #eee; border-radius: 15px;
+            background: white; font-size: 13px; font-weight: 600; flex: 1; margin: 0 3px;
+        }
+        .tab-btn.active { background: #3498db; color: white; border-color: #3498db; }
+
+        /* --- GRID --- */
+        .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; margin-bottom: 100px; }
+        .product-card {
+            background: white; padding: 8px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            text-align: center; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .product-image { width: 100%; height: 90px; border-radius: 8px; object-fit: contain; background: #fdfdfd; margin-bottom: 5px; }
+        h2 { font-size: 0.85rem; margin: 3px 0; height: 32px; overflow: hidden; line-height: 1.2; }
+        .price-tag { font-size: 1rem; color: #27ae60; font-weight: bold; margin-bottom: 5px; }
+        
+        /* --- ADD BUTTON ANIMATION --- */
+        .btn-order { 
+            background-color: #3498db; color: white; border: none; padding: 8px; 
+            border-radius: 8px; font-weight: bold; font-size: 12px; 
+            transition: all 0.2s ease;
+        }
+        .btn-order:active { transform: scale(0.9); background-color: #2980b9; }
+        .btn-added { background-color: #2ecc71 !important; transform: scale(1.1); }
+
+        /* --- MODALS --- */
+        #cart-modal, #admin-modal { display: none; position: fixed; inset: 0; background: white; z-index: 2000; padding: 20px; overflow-y: auto; }
+        
+        /* --- CART QUANTITY CONTROLS --- */
+        .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .qty-controls { display: flex; align-items: center; gap: 10px; }
+        .qty-btn { 
+            background: #eee; border: none; width: 30px; height: 30px; 
+            border-radius: 50%; font-weight: bold; font-size: 18px; 
+        }
+        .qty-val { font-weight: bold; min-width: 20px; text-align: center; }
+
+        .total-section { font-size: 1.1rem; text-align: right; margin-top: 10px; font-weight: bold; }
+        .close-btn { background: #34495e; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; margin-top: 10px; font-size: 16px; }
+
+        /* --- ADMIN PANEL --- */
+        .admin-form input, .admin-form select { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .admin-list-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .admin-list-item img { width: 40px; height: 40px; border-radius: 5px; object-fit: cover; }
+        .admin-actions button { padding: 5px 10px; margin-left: 5px; border-radius: 5px; border: none; color: white; font-size: 11px; }
+
+        /* --- PRINT --- */
+        #printable-receipt { display: none; width: 58mm; padding: 5px; background: white; font-family: 'Courier New', monospace; color: #000; }
+        .receipt-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 11px; }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-receipt, #printable-receipt * { visibility: visible; }
+            #printable-receipt { display: block !important; position: absolute; left: 0; top: 0; width: 58mm; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="seat-overlay">
+        <div class="seat-card">
+            <h2>Welcome to SBR Pub</h2>
+            <p>Enter Table Number</p>
+            <input type="number" id="seat-input" placeholder="#" min="1">
+            <button class="btn-start" onclick="setSeat()">Start Ordering</button>
+        </div>
+    </div>
+
+    <div id="main-menu-container">
+        <div style="background: #2c3e50; color: white; text-align: center; padding: 8px; font-size: 14px;">
+            <strong onclick="checkAdmin()">SBR Pub</strong> | Table: <span id="display-seat-num">--</span>
+        </div>
+
+        <div class="category-header">
+            <button class="tab-btn active" onclick="filterCategory('Drink', this)">Drinks</button>
+            <button class="tab-btn" onclick="filterCategory('Food', this)">Food</button>
+            <button class="tab-btn" onclick="filterCategory('Promotion', this)">Promo</button>
+        </div>
+
+        <div class="product-grid" id="product-list"></div>
+
+        <div class="btn-view-cart" style="position:fixed; bottom:15px; left:50%; transform:translateX(-50%); background:#2c3e50; color:white; padding:12px; border-radius:30px; width:85%; text-align:center; z-index:1001;" onclick="toggleCart()">
+            🛒 View Order (<span id="cart-count">0</span>)
+        </div>
+    </div>
+
+    <div id="cart-modal">
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <h3>Your Order</h3>
+            <span onclick="toggleCart()" style="font-size:28px;">&times;</span>
+        </div>
+        <div id="cart-items-container"></div>
+        <div style="margin-top:15px; background: #f1f2f6; padding: 10px; border-radius: 10px;">
+            <label>Discount ($):</label>
+            <input type="number" id="discount-input" value="0" oninput="updateUI()" style="width: 80px; padding: 5px;">
+        </div>
+        <div class="total-section">Total: $<span id="total-price">0.00</span></div>
+        <button class="close-btn" style="background:#27ae60" id="submit-btn" onclick="sendToReception()">Order & Print</button>
+        <button class="close-btn" onclick="toggleCart()">Back</button>
+    </div>
+
+    <div id="admin-modal">
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <h3>Menu Admin</h3>
+            <span onclick="toggleAdmin()" style="font-size:28px;">&times;</span>
+        </div>
+        <div class="admin-form">
+            <input type="hidden" id="edit-id">
+            <input type="text" id="new-name" placeholder="Product Name">
+            <input type="number" id="new-price" placeholder="Price" step="0.01">
+            <select id="new-cat">
+                <option value="Drink">Drink</option>
+                <option value="Food">Food</option>
+                <option value="Promotion">Promotion</option>
+            </select>
+            <div style="margin: 5px 0; font-size: 12px;">Product Image:</div>
+            <input type="file" id="new-img-file" accept="image/*" onchange="handleImageUpload(this)">
+            <button class="btn-start" style="margin-top:10px;" onclick="saveProduct()">Save Product</button>
+            <button class="btn-start" style="background:#95a5a6; margin-top:5px;" onclick="clearAdminForm()">Clear Form</button>
+        </div>
+        <hr>
+        <h4>Manage All Items</h4>
+        <div id="admin-items-list"></div>
+        <button class="close-btn" onclick="toggleAdmin()">Close Admin</button>
+    </div>
+
+    <div id="printable-receipt">
+        <div style="text-align:center; border-bottom:1px dashed #000; padding-bottom:10px;">
+            <h1 style="font-size:18px;">SBR PUB</h1>
+        </div>
+        <div id="p-details" style="font-size:11px; margin-top:5px;"></div>
+        <div style="border-top:1px dashed #000; margin:5px 0;"></div>
+        <div id="p-items-list"></div>
+        <div style="border-top:1px dashed #000; margin:5px 0;"></div>
+        <div class="receipt-row" style="font-weight:bold; font-size:14px;">
+            <span>TOTAL:</span><span id="p-total"></span>
+        </div>
+    </div>
+
+    <script>
+        let seatNumber = "";
+        let cart = [];
+        let currentCategory = 'Drink';
+        let base64Image = "";
+
+        // --- CONFIGURATION ---
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrj2e2VZs1byJTPaTM06s_WDEV4x_wLcHP5oACGmDCCEEWtvd5_NhGpJ2d63GasOkv/exec";
+        const TELEGRAM_TOKEN = "8745270035:AAFbOP83ySwLtLChJbtXE36QHjavUR-hySY";
+        const TELEGRAM_CHAT_ID = "1031129158"; 
+
+        let products = JSON.parse(localStorage.getItem('sbr_menu')) || [
+            { id: 1, name: "Cocacola", price: 1.50, img: "", category: "Drink" }
+        ];
+
+        function setSeat() {
+            const val = document.getElementById('seat-input').value;
+            if (!val) return alert("Enter Table #");
+            seatNumber = val;
+            document.getElementById('display-seat-num').innerText = val;
+            document.getElementById('seat-overlay').style.display = 'none';
+        }
+
+        function filterCategory(cat, btn) {
+            currentCategory = cat;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const list = document.getElementById('product-list');
+            list.innerHTML = products.filter(p => p.category === currentCategory).map(p => `
+                <div class="product-card">
+                    <img src="${p.img}" class="product-image" onerror="this.src='https://placehold.co/100x100?text=SBR'">
+                    <div><h2>${p.name}</h2><div class="price-tag">$${parseFloat(p.price).toFixed(2)}</div></div>
+                    <button class="btn-order" onclick="addToCart(this, '${p.name}', ${p.price})">Add +</button>
+                </div>
+            `).join('');
+        }
+
+        function addToCart(btn, name, price) {
+            // Visual Transition
+            btn.classList.add('btn-added');
+            btn.innerText = "Added ✔";
+            setTimeout(() => {
+                btn.classList.remove('btn-added');
+                btn.innerText = "Add +";
+            }, 600);
+
+            const item = cart.find(i => i.name === name);
+            if (item) item.qty++; else cart.push({ name, price: parseFloat(price), qty: 1 });
+            updateUI();
+        }
+
+        function updateQty(name, change) {
+            const idx = cart.findIndex(i => i.name === name);
+            if (idx !== -1) {
+                cart[idx].qty += change;
+                if (cart[idx].qty <= 0) cart.splice(idx, 1);
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            let subtotal = 0, count = 0;
+            document.getElementById('cart-items-container').innerHTML = cart.map(item => {
+                subtotal += item.price * item.qty; count += item.qty;
+                return `
+                <div class="cart-item">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;">${item.name}</div>
+                        <div style="color:#777; font-size:12px;">$${item.price.toFixed(2)} / unit</div>
+                    </div>
+                    <div class="qty-controls">
+                        <button class="qty-btn" onclick="updateQty('${item.name}', -1)">-</button>
+                        <span class="qty-val">${item.qty}</span>
+                        <button class="qty-btn" onclick="updateQty('${item.name}', 1)">+</button>
+                    </div>
+                    <div style="width:70px; text-align:right; font-weight:bold;">$${(item.price * item.qty).toFixed(2)}</div>
+                </div>`;
+            }).join('');
+            
+            if (cart.length === 0) {
+                document.getElementById('cart-items-container').innerHTML = `<p style="text-align:center; color:#888; padding:20px;">Your cart is empty</p>`;
+            }
+
+            const disc = parseFloat(document.getElementById('discount-input').value) || 0;
+            document.getElementById('cart-count').innerText = count;
+            document.getElementById('total-price').innerText = Math.max(0, subtotal - disc).toFixed(2);
+        }
+
+        function checkAdmin() { if (prompt("Password:") === "123") toggleAdmin(); }
+        function toggleAdmin() {
+            const m = document.getElementById('admin-modal');
+            m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+            if(m.style.display === 'block') renderAdminList();
+        }
+
+        function handleImageUpload(input) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { base64Image = reader.result; };
+            if (file) reader.readAsDataURL(file);
+        }
+
+        function renderAdminList() {
+            document.getElementById('admin-items-list').innerHTML = products.map(p => `
+                <div class="admin-list-item">
+                    <img src="${p.img}" onerror="this.src='https://placehold.co/40x40'">
+                    <div style="flex:1; margin-left:10px;"><strong>${p.name}</strong><br>$${p.price}</div>
+                    <div class="admin-actions">
+                        <button style="background:#3498db" onclick="editProduct(${p.id})">Edit</button>
+                        <button style="background:#e74c3c" onclick="deleteProduct(${p.id})">Del</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function saveProduct() {
+            const id = document.getElementById('edit-id').value;
+            const name = document.getElementById('new-name').value;
+            const price = parseFloat(document.getElementById('new-price').value);
+            const cat = document.getElementById('new-cat').value;
+            if (!name || isNaN(price)) return alert("Required: Name & Price");
+
+            if (id) {
+                const idx = products.findIndex(p => p.id == id);
+                products[idx] = { ...products[idx], name, price, category: cat };
+                if(base64Image) products[idx].img = base64Image;
+            } else {
+                products.push({ id: Date.now(), name, price, category: cat, img: base64Image });
+            }
+            localStorage.setItem('sbr_menu', JSON.stringify(products));
+            clearAdminForm(); renderAdminList(); renderProducts(); alert("Saved!");
+        }
+
+        function editProduct(id) {
+            const p = products.find(i => i.id === id);
+            document.getElementById('edit-id').value = p.id;
+            document.getElementById('new-name').value = p.name;
+            document.getElementById('new-price').value = p.price;
+            document.getElementById('new-cat').value = p.category;
+            base64Image = p.img; window.scrollTo(0,0);
+        }
+
+        function deleteProduct(id) {
+            if(confirm("Delete?")) {
+                products = products.filter(p => p.id !== id);
+                localStorage.setItem('sbr_menu', JSON.stringify(products));
+                renderAdminList(); renderProducts();
+            }
+        }
+
+        function clearAdminForm() {
+            document.getElementById('edit-id').value = "";
+            document.getElementById('new-name').value = "";
+            document.getElementById('new-price').value = "";
+            document.getElementById('new-img-file').value = "";
+            base64Image = "";
+        }
+
+        function toggleCart() {
+            const m = document.getElementById('cart-modal');
+            m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+        }
+
+        async function sendToReception() {
+            if (cart.length === 0) return;
+            const btn = document.getElementById('submit-btn');
+            const total = document.getElementById('total-price').innerText;
+            const itemsList = cart.map(i => `${i.qty}x ${i.name}`).join(", ");
+            
+            const orderData = { seat: seatNumber, items: itemsList, total: total };
+            const telegramMsg = `🔔 *NEW ORDER*\n━━━━━━━━━━━━━━\n🪑 *Table:* ${seatNumber}\n🛒 *Items:* ${itemsList}\n💰 *Total:* $${total}\n━━━━━━━━━━━━━━`;
+
+            btn.innerText = "Sending...";
+            btn.disabled = true;
+
+            try {
+                fetch(GOOGLE_SCRIPT_URL, { 
+                    method: 'POST', mode: 'no-cors', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderData) 
+                });
+
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: telegramMsg, parse_mode: "Markdown" })
+                });
+            } catch (e) { console.error(e); }
+
+            document.getElementById('p-details').innerHTML = `Table: ${seatNumber}<br>${new Date().toLocaleString()}`;
+            document.getElementById('p-items-list').innerHTML = cart.map(i => `
+                <div class="receipt-row"><span>${i.qty}x ${i.name}</span><span>$${(i.qty * i.price).toFixed(2)}</span></div>`).join('');
+            document.getElementById('p-total').innerText = "$" + total;
+            
+            setTimeout(() => {
+                window.print();
+                btn.innerText = "Order & Print";
+                btn.disabled = false;
+                cart = []; updateUI(); toggleCart();
+            }, 1000);
+        }
+
+        renderProducts();
+    </script>
+</body>
+</html>
